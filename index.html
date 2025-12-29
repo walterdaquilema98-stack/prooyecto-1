@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Toques - TUVN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        }
+        
+        /* Animaciones de impacto */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        
+        @keyframes impact {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+        
+        .shake-animation {
+            animation: shake 0.5s;
+        }
+        
+        .impact-animation {
+            animation: impact 0.3s;
+        }
+        
+        .pulse-ring {
+            animation: pulse-ring 0.8s ease-out;
+        }
+        
+        /* Contador de toques gigante */
+        .tap-counter {
+            font-size: 12rem;
+            font-weight: 900;
+            line-height: 1;
+            text-shadow: 0 0 40px rgba(59, 130, 246, 0.5);
+        }
+        
+        /* Visualizador de intensidad */
+        .intensity-bar {
+            height: 40px;
+            background: linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .intensity-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.4);
+            transition: width 0.3s ease;
+            border-radius: 20px;
+        }
+        
+        /* Historial de toques */
+        .tap-history-item {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .data-card {
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .ping-dot {
+            animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        
+        @keyframes ping {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- HEADER INSTITUCIONAL -->
+    <header class="bg-black text-white shadow-2xl border-b-4 border-blue-600">
+        <div class="container mx-auto px-4 py-6">
+            <div class="text-center">
+                <div class="flex items-center justify-center gap-3 mb-2">
+                    <i data-lucide="graduation-cap" class="w-10 h-10 text-blue-500"></i>
+                </div>
+                <h1 class="text-4xl font-black tracking-tight text-blue-500">
+                    INSTITUTO SUPERIOR TECNOLÓGICO UNIVERSITARIO VIDA NUEVA
+                </h1>
+                <p class="text-blue-400 mt-2 text-sm font-semibold tracking-widest">AUTOMATIZACIÓN E INSTRUMENTACIÓN</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- BARRA DE INFORMACIÓN -->
+    <div class="bg-slate-800 border-b border-slate-700 shadow-lg">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center text-sm text-slate-300">
+            <div class="flex items-center gap-2">
+                <i data-lucide="user-circle" class="w-4 h-4 text-blue-500"></i>
+                <span class="font-medium">Desarrollador: <span class="text-blue-400 font-bold">Grupo 4</span></span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 bg-slate-700/50 px-4 py-2 rounded-lg border border-slate-600">
+                    <div class="relative flex h-3 w-3">
+                        <span id="pingDot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 hidden"></span>
+                        <span id="staticDot" class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </div>
+                    <span id="statusText" class="text-sm font-mono text-red-300">Desconectado</span>
+                </div>
+                <div class="flex gap-4 font-mono text-slate-400">
+                    <span id="dateDisplay">--/--/----</span>
+                    <span id="timeDisplay" class="text-blue-400 font-bold">--:--:--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        
+        <div class="text-center mb-8">
+            <h2 class="text-4xl font-bold text-white mb-2">Sistema de Detección de Toques</h2>
+            <p class="text-blue-300 text-lg">Acelerómetro MPU6050 - Detección de Impactos</p>
+        </div>
+
+        <!-- CONTADOR PRINCIPAL DE TOQUES -->
+        <div class="mb-8">
+            <div id="mainCounter" class="bg-gradient-to-br from-blue-500/20 to-blue-700/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 border-4 border-blue-500/50 relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-center gap-4 mb-6">
+                        <i data-lucide="hand-metal" class="w-16 h-16 text-blue-400"></i>
+                        <h3 class="text-3xl font-bold text-white">TOTAL DE TOQUES</h3>
+                    </div>
+                    <div id="tapCounter" class="tap-counter text-center text-blue-400">0</div>
+                    <div class="text-center text-blue-200 text-xl mt-4">impactos detectados</div>
+                    
+                    <!-- Anillos de pulso para efecto visual -->
+                    <div id="pulseRing1" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-4 border-blue-400 rounded-full opacity-0"></div>
+                    <div id="pulseRing2" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-4 border-blue-300 rounded-full opacity-0"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISUALIZADOR DE INTENSIDAD DEL ÚLTIMO TOQUE -->
+        <div class="mb-8">
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-white/20">
+                <h3 class="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-7 h-7 text-green-400"></i>
+                    Intensidad del Último Toque
+                </h3>
+                <div class="intensity-bar">
+                    <div id="intensityIndicator" class="intensity-indicator" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-white text-sm mt-2">
+                    <span>Suave</span>
+                    <span id="intensityValue" class="font-bold">0.0 g</span>
+                    <span>Fuerte</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESTADÍSTICAS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Toque más fuerte -->
+            <div class="data-card bg-gradient-to-br from-red-500/20 to-red-700/20 backdrop-blur-lg rounded-xl p-6 border border-red-500/30">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-red-300 font-bold text-lg">TOQUE MÁS FUERTE</span>
+                    <i data-lucide="zap" class="w-6 h-6 text-red-400"></i>
+                </div>
+                <div id="maxIntensity" class="text-4xl font-black text-white">0.0</div>
+                <div class="text-red-200 text-sm mt-2">g (aceleración)</div>
+            </div>
+            
+            <!-- Promedio de intensidad -->
+            <div class="data-card bg-gradient-to-br from-yellow-500/20 to-yellow-700/20 backdrop-blur-lg rounded-xl p-6 border border-yellow-500/30">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-yellow-300 font-bold text-lg">PROMEDIO</span>
+                    <i data-lucide="bar-chart-3" class="w-6 h-6 text-yellow-400"></i>
+                </div>
+                <div id="avgIntensity" class="text-4xl font-black text-white">0.0</div>
+                <div class="text-yellow-200 text-sm mt-2">g (aceleración)</div>
+            </div>
+            
+            <!-- Última aceleración -->
+            <div class="data-card bg-gradient-to-br from-green-500/20 to-green-700/20 backdrop-blur-lg rounded-xl p-6 border border-green-500/30">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-green-300 font-bold text-lg">ACELERACIÓN ACTUAL</span>
+                    <i data-lucide="gauge" class="w-6 h-6 text-green-400"></i>
+                </div>
+                <div id="currentAccel" class="text-4xl font-black text-white">0.0</div>
+                <div class="text-green-200 text-sm mt-2">g (magnitud total)</div>
+            </div>
+        </div>
+
+        <!-- HISTORIAL DE TOQUES -->
+        <div class="mb-8">
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-white/20">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="history" class="w-7 h-7 text-purple-400"></i>
+                        Historial de Toques
+                    </h3>
+                    <button onclick="clearHistory()" class="bg-red-500/30 hover:bg-red-500/50 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-red-400/50">
+                        <i data-lucide="trash-2" class="inline w-4 h-4 mr-2"></i>
+                        Limpiar
+                    </button>
+                </div>
+                <div id="tapHistory" class="space-y-2 max-h-64 overflow-y-auto">
+                    <div class="text-slate-400 text-center py-8">
+                        <i data-lucide="touch" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                        <p>Esperando detección de toques...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTÓN CONECTAR -->
+        <div class="mt-12 flex justify-center gap-4">
+            <button id="connectBtn" onclick="toggleConnection()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-12 rounded-full shadow-2xl flex items-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-blue-400">
+                <i data-lucide="bluetooth" class="w-7 h-7"></i>
+                <span class="text-lg">CONECTAR ACELERÓMETRO</span>
+            </button>
+            
+            <button onclick="resetCounter()" 
+                    class="bg-slate-600 hover:bg-slate-700 text-white font-bold py-5 px-12 rounded-full shadow-2xl flex items-center gap-3 transition-all hover:scale-105 active:scale-95 border-2 border-slate-400">
+                <i data-lucide="rotate-ccw" class="w-7 h-7"></i>
+                <span class="text-lg">REINICIAR CONTADOR</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black text-slate-400 py-6 text-center text-sm border-t-4 border-blue-600">
+        <p>© 2025 Instituto Superior Tecnológico Universitario Vida Nueva</p>
+        <p class="text-xs mt-1">Sistema de Detección de Toques por Acelerómetro</p>
+    </footer>
+
+    <script>
+        lucide.createIcons();
+
+        // Variables globales
+        let tapCount = 0;
+        let maxIntensityValue = 0;
+        let totalIntensity = 0;
+        let tapHistory = [];
+
+        // RELOJ
+        function updateClock() {
+            const now = new Date();
+            const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('dateDisplay').textContent = now.toLocaleDateString('es-EC', optionsDate);
+            document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('es-EC');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // BLUETOOTH
+        const serviceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const characteristicUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        let bluetoothDevice;
+        let bleCharacteristic;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const statusText = document.getElementById('statusText');
+        const pingDot = document.getElementById('pingDot');
+        const staticDot = document.getElementById('staticDot');
+
+        async function toggleConnection() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        async function connect() {
+            try {
+                connectBtn.innerHTML = '<span class="animate-spin">⌛</span> BUSCANDO SENSOR...';
+                
+                console.log('Buscando acelerómetro...');
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ACCEL_TUVN' }],
+                    optionalServices: [serviceUuid]
+                });
+
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                const server = await bluetoothDevice.gatt.connect();
+                const service = await server.getPrimaryService(serviceUuid);
+                bleCharacteristic = await service.getCharacteristic(characteristicUuid);
+
+                await bleCharacteristic.startNotifications();
+                bleCharacteristic.addEventListener('characteristicvaluechanged', handleData);
+
+                console.log('¡Conectado al acelerómetro!');
+                updateUIConnected();
+
+            } catch (error) {
+                console.log('Error de conexión:', error);
+                updateUIDisconnected();
+            }
+        }
+
+        function disconnect() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+            }
+        }
+
+        function onDisconnected() {
+            console.log('Desconectado.');
+            updateUIDisconnected();
+        }
+
+        function handleData(event) {
+            const value = event.target.value;
+            const decoder = new TextDecoder('utf-8');
+            const jsonString = decoder.decode(value);
+
+            console.log("Dato recibido:", jsonString);
+
+            try {
+                // Formato esperado: {"tap":1,"intensity":2.5,"accel":1.2}
+                const data = JSON.parse(jsonString);
+
+                // Actualizar aceleración actual
+                if(data.accel !== undefined) {
+                    document.getElementById('currentAccel').textContent = data.accel.toFixed(2);
+                }
+
+                // Si se detectó un toque
+                if(data.tap === 1 && data.intensity !== undefined) {
+                    registerTap(data.intensity);
+                }
+
+                // Efecto de latido
+                pingDot.classList.remove('hidden');
+                setTimeout(() => {
+                    pingDot.classList.add('hidden');
+                }, 500);
+
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error("Error al leer JSON:", e);
+            }
+        }
+
+        // Registrar un toque detectado
+        function registerTap(intensity) {
+            tapCount++;
+            totalIntensity += intensity;
+
+            // Actualizar contador principal con animación
+            const counter = document.getElementById('tapCounter');
+            const mainCounter = document.getElementById('mainCounter');
+            counter.textContent = tapCount;
+            counter.classList.add('impact-animation');
+            mainCounter.classList.add('shake-animation');
+            
+            // Efecto de anillos pulsantes
+            document.getElementById('pulseRing1').classList.add('pulse-ring');
+            document.getElementById('pulseRing2').classList.add('pulse-ring');
+            
+            setTimeout(() => {
+                counter.classList.remove('impact-animation');
+                mainCounter.classList.remove('shake-animation');
+                document.getElementById('pulseRing1').classList.remove('pulse-ring');
+                document.getElementById('pulseRing2').classList.remove('pulse-ring');
+            }, 500);
+
+            // Actualizar intensidad
+            updateIntensity(intensity);
+
+            // Actualizar máximo
+            if(intensity > maxIntensityValue) {
+                maxIntensityValue = intensity;
+                document.getElementById('maxIntensity').textContent = intensity.toFixed(2);
+            }
+
+            // Actualizar promedio
+            const avg = totalIntensity / tapCount;
+            document.getElementById('avgIntensity').textContent = avg.toFixed(2);
+
+            // Agregar al historial
+            addToHistory(tapCount, intensity);
+        }
+
+        // Actualizar barra de intensidad
+        function updateIntensity(intensity) {
+            const indicator = document.getElementById('intensityIndicator');
+            const valueDisplay = document.getElementById('intensityValue');
+            
+            // Normalizar intensidad (0-5g = 0-100%)
+            let percentage = (intensity / 5) * 100;
+            percentage = Math.min(100, Math.max(0, percentage));
+            
+            indicator.style.width = percentage + '%';
+            valueDisplay.textContent = intensity.toFixed(2) + ' g';
+        }
+
+        // Agregar al historial
+        function addToHistory(number, intensity) {
+            const now = new Date();
+            const time = now.toLocaleTimeString('es-EC');
+            
+            tapHistory.unshift({number, intensity, time});
+            if(tapHistory.length > 20) tapHistory.pop(); // Mantener solo 20
+            
+            renderHistory();
+        }
+
+        // Renderizar historial
+        function renderHistory() {
+            const container = document.getElementById('tapHistory');
+            
+            if(tapHistory.length === 0) {
+                container.innerHTML = `
+                    <div class="text-slate-400 text-center py-8">
+                        <i data-lucide="touch" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                        <p>Esperando detección de toques...</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+            
+            container.innerHTML = tapHistory.map(item => {
+                const color = item.intensity > 3 ? 'red' : item.intensity > 1.5 ? 'yellow' : 'green';
+                return `
+                    <div class="tap-history-item bg-slate-700/50 p-3 rounded-lg flex justify-between items-center border border-slate-600">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-${color}-500/30 rounded-full flex items-center justify-center border border-${color}-400">
+                                <span class="text-white font-bold">${item.number}</span>
+                            </div>
+                            <div>
+                                <div class="text-white font-semibold">Toque #${item.number}</div>
+                                <div class="text-slate-400 text-sm">${item.time}</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-${color}-400 font-bold text-lg">${item.intensity.toFixed(2)} g</div>
+                            <div class="text-slate-400 text-xs">${item.intensity > 3 ? 'Fuerte' : item.intensity > 1.5 ? 'Medio' : 'Suave'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        // Limpiar historial
+        function clearHistory() {
+            tapHistory = [];
+            renderHistory();
+        }
+
+        // Reiniciar contador
+        function resetCounter() {
+            if(confirm('¿Deseas reiniciar el contador de toques?')) {
+                tapCount = 0;
+                maxIntensityValue = 0;
+                totalIntensity = 0;
+                document.getElementById('tapCounter').textContent = '0';
+                document.getElementById('maxIntensity').textContent = '0.0';
+                document.getElementById('avgIntensity').textContent = '0.0';
+                document.getElementById('currentAccel').textContent = '0.0';
+                updateIntensity(0);
+                clearHistory();
+            }
+        }
+
+        function updateUIConnected() {
+            connectBtn.innerHTML = '<i data-lucide="bluetooth-connected" class="w-7 h-7"></i> <span class="text-lg">DESCONECTAR SENSOR</span>';
+            lucide.createIcons();
+            connectBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'border-blue-400');
+            connectBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'border-red-400');
+            
+            statusText.innerText = "CONECTADO";
+            statusText.classList.replace('text-red-300', 'text-emerald-400');
+            staticDot.classList.replace('bg-red-500', 'bg-emerald-500');
+        }
+
+        function updateUIDisconnected() {
+            connectBtn.innerHTML = '<i data-lucide="bluetooth" class="w-7 h-7"></i> <span class="text-lg">CONECTAR ACELERÓMETRO</span>';
+            lucide.createIcons();
+            connectBtn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'border-blue-400');
+            connectBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'border-red-400');
+
+            statusText.innerText = "DESCONECTADO";
+            statusText.classList.replace('text-emerald-400', 'text-red-300');
+            staticDot.classList.replace('bg-emerald-500', 'bg-red-500');
+            pingDot.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
